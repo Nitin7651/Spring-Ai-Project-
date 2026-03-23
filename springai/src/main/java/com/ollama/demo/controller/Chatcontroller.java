@@ -12,12 +12,13 @@ import reactor.core.publisher.Flux;
 @RestController
 @RequestMapping
 public class Chatcontroller {
-    private ChatService chatService;
 
-    private ChatClient chatClient;
+    private final ChatService chatService;
+    private final ChatClient chatClient;
 
-    public Chatcontroller(ChatClient.Builder builder, ChatService chatService) {
-        this.chatClient = builder.build();
+    // Inject the shared ChatClient bean (pre-configured with MessageChatMemoryAdvisor)
+    public Chatcontroller(ChatClient chatClient, ChatService chatService) {
+        this.chatClient = chatClient;
         this.chatService = chatService;
     }
 
@@ -37,3 +38,4 @@ public class Chatcontroller {
     }
 
 }
+
