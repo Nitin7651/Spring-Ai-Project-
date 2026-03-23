@@ -11,20 +11,19 @@ public class ChatServiceImpl implements ChatService {
 
     private final ChatClient chatClient;
 
-    @Value("classpath:/prompts/system-prompt.st")
-    private Resource systemResource;
 
     @Value("classpath:/prompts/user-prompt.st")
     private Resource userResource;
 
-    public ChatServiceImpl(ChatClient.Builder builder) {
-        this.chatClient = builder.build();
+    // Inject the pre-configured ChatClient bean from ChatConfig
+    // (already has MessageChatMemoryAdvisor with 10-message window)
+    public ChatServiceImpl(ChatClient chatClient) {
+        this.chatClient = chatClient;
     }
 
     @Override
     public String chat(String query) {
         return chatClient.prompt()
-                .system(systemResource)
                 .user(u -> u.text(userResource).param("topic", "General").param("query", query))
                 .call()
                 .content();
@@ -33,7 +32,6 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public Flux<String> streamChat(String query) {
         return chatClient.prompt()
-                .system(systemResource)
                 .user(u -> u.text(userResource).param("topic", "General").param("query", query))
                 .stream()
                 .content();
