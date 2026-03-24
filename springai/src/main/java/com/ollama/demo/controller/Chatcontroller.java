@@ -1,9 +1,9 @@
 package com.ollama.demo.controller;
 
 import com.ollama.demo.service.ChatService;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,28 +14,24 @@ import reactor.core.publisher.Flux;
 public class Chatcontroller {
 
     private final ChatService chatService;
-    private final ChatClient chatClient;
 
-    // Inject the shared ChatClient bean (pre-configured with MessageChatMemoryAdvisor)
-    public Chatcontroller(ChatClient chatClient, ChatService chatService) {
-        this.chatClient = chatClient;
+    public Chatcontroller(ChatService chatService) {
         this.chatService = chatService;
     }
 
     @GetMapping("/chat")
     public ResponseEntity<String> chat(
-            @RequestParam(value = "q") String query) {
+            @RequestParam(value = "q") String query,
+            @RequestHeader("userId") String userId) {
 
-        String responseContent = this.chatClient.prompt(query).call().content();
-        return ResponseEntity.ok(responseContent);
+        return ResponseEntity.ok(chatService.chat(query, userId));
     }
 
     @GetMapping(value = "/stream-chat", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamchat(
-            @RequestParam(value = "q") String query) {
+            @RequestParam(value = "q") String query,
+            @RequestHeader("userId") String userId) {
 
-        return this.chatService.streamChat(query);
+        return chatService.streamChat(query, userId);
     }
-
 }
-
