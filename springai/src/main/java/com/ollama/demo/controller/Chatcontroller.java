@@ -1,6 +1,8 @@
 package com.ollama.demo.controller;
 
 import com.ollama.demo.service.ChatService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -13,6 +15,8 @@ import reactor.core.publisher.Flux;
 @RequestMapping
 public class Chatcontroller {
 
+    private static final Logger log = LoggerFactory.getLogger(Chatcontroller.class);
+
     private final ChatService chatService;
 
     public Chatcontroller(ChatService chatService) {
@@ -24,6 +28,7 @@ public class Chatcontroller {
             @RequestParam(value = "q") String query,
             @RequestHeader("userId") String userId) {
 
+        log.info("[/chat] userId={} | query={}", userId, query);
         return ResponseEntity.ok(chatService.chat(query, userId));
     }
 
@@ -32,6 +37,7 @@ public class Chatcontroller {
             @RequestParam(value = "q") String query,
             @RequestHeader("userId") String userId) {
 
+        log.info("[/stream-chat] userId={} | query={}", userId, query);
         return chatService.streamChat(query, userId);
     }
 }
