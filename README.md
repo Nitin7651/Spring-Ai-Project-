@@ -1,6 +1,6 @@
 # 🤖 Spring AI Chat — Gemini 2.5 Flash
 
-A Spring Boot application that exposes REST APIs for conversational AI using **Google Gemini 2.5 Flash** via **Spring AI**. Supports both blocking and streaming responses, with **per-user isolated chat memory** managed through a `userId` request header.
+A Spring Boot application that exposes REST APIs for conversational AI using **Google Gemini 2.5 Flash** via **Spring AI**. Supports both blocking and streaming responses, with **per-user persistent chat memory** backed by **PostgreSQL** via `JdbcChatMemoryRepository`.
 
 ---
 
@@ -13,7 +13,8 @@ A Spring Boot application that exposes REST APIs for conversational AI using **G
 | AI Model | Google Gemini 2.5 Flash |
 | Language | Java 21 |
 | Build Tool | Maven |
-| Memory | In-Memory (per user, last 10 messages) |
+| Database | PostgreSQL |
+| Chat Memory | `JdbcChatMemoryRepository` + `MessageWindowChatMemory` (last 10 messages per user) |
 
 ---
 
@@ -22,18 +23,19 @@ A Spring Boot application that exposes REST APIs for conversational AI using **G
 ```
 src/main/java/com/ollama/demo/
 ├── config/
-│   └── ChatConfig.java          # ChatClient, memory beans
+│   └── ChatConfig.java          # ChatClient + JdbcChatMemory beans
 ├── controller/
-│   └── Chatcontroller.java      # REST endpoints
+│   └── Chatcontroller.java      # REST endpoints (/chat, /stream-chat)
 ├── service/
 │   ├── ChatService.java         # Interface
-│   └── ChatServiceImpl.java     # Business logic + memory advisor
+│   └── ChatServiceImpl.java     # Business logic + PromptChatMemoryAdvisor
 └── DemoApplication.java
 
 src/main/resources/
-├── application.properties       # Gemini API config
+├── application.properties       # Gemini API + PostgreSQL config
 └── prompts/
-    └── user-prompt.st           # StringTemplate user prompt
+    ├── system-prompt.st         # System-level AI persona prompt
+    └── user-prompt.st           # StringTemplate user prompt (topic + query)
 ```
 
 ---
@@ -54,13 +56,35 @@ $env:GEMINI_API_KEY = "your-api-key-here"
 export GEMINI_API_KEY=your-api-key-here
 ```
 
-### 3. `application.properties`
+### 3. Set Up PostgreSQL
+
+Create a database named `springAI` in your local PostgreSQL instance:
+
+```sql
+CREATE DATABASE "springAI";
+```
+
+> The `spring_ai_chat_memory` table is created automatically on startup — no manual migration needed.
+
+### 4. `application.properties`
 
 ```properties
+spring.application.name=demo
+
+# Gemini AI
 spring.ai.google.genai.api-key=${GEMINI_API_KEY}
 spring.ai.google.genai.chat.options.model=gemini-2.5-flash
 spring.ai.google.genai.chat.options.temperature=0.2
 spring.ai.google.genai.chat.options.max-tokens=200
+
+# PostgreSQL Datasource
+spring.datasource.url=jdbc:postgresql://localhost:5432/springAI
+spring.datasource.username=postgres
+spring.datasource.password=root
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Auto-create Spring AI chat memory table
+spring.ai.chat.memory.repository.jdbc.initialize-schema=ALWAYS
 ```
 
 ---
@@ -68,6 +92,7 @@ spring.ai.google.genai.chat.options.max-tokens=200
 ## ▶️ Running the Application
 
 ```bash
+cd springai
 mvn spring-boot:run
 ```
 
@@ -77,7 +102,7 @@ Server starts on **`http://localhost:8080`**
 
 ## 🌐 API Endpoints
 
-Both endpoints require a **`userId`** request header. This value is used as the conversation ID — each user gets their own isolated memory (last 10 messages).
+Both endpoints require a **`userId`** request header. This value is used as the conversation ID — each user gets their own isolated, **persistent** memory (last 10 messages, stored in PostgreSQL).
 
 ---
 
@@ -117,24 +142,31 @@ Spring Boot is a framework...
 
 ---
 
-## 🧠 Per-User Chat Memory
+## 🧠 Per-User Persistent Chat Memory
 
-Each request must include a `userId` header. The app uses this as a unique conversation key — each user has their own memory of the last **10 messages**.
+Each request must include a `userId` header. The app uses this as a unique conversation key — each user has their own memory of the last **10 messages**, persisted in PostgreSQL. Memory **survives application restarts**.
 
 ```
 # User Alice introduces herself
 GET /chat?q=My name is Alice   →   Header: userId: user-alice
 
-# Alice asks a follow-up — AI remembers
+# Alice asks a follow-up — AI remembers (even after restart)
 GET /chat?q=What is my name?  →   Header: userId: user-alice
 # Response: "Your name is Alice."
 
-# User Bob knows nothing about Alice
+# User Bob has separate, isolated memory
 GET /chat?q=What is my name?  →   Header: userId: user-bob
 # Response: "I don't know your name yet."
 ```
 
-Memory is **in-memory only** — it resets when the application restarts.
+### How It Works
+
+| Component | Role |
+|---|---|
+| `JdbcChatMemoryRepository` | Persists messages to PostgreSQL (auto-configured) |
+| `MessageWindowChatMemory` | Limits history to the last 10 messages per user |
+| `PromptChatMemoryAdvisor` | Injects conversation history into each prompt at request time |
+| `userId` header | Used as `conversationId` to route memory per user |
 
 ---
 
@@ -144,6 +176,17 @@ Memory is **in-memory only** — it resets when the application restarts.
 2. Add query param `q` = your question
 3. Add header `userId` = any unique string per user
 4. For `/stream-chat`, click **Send** and check the **Response → Body** tab for SSE events
+
+---
+
+## 📦 Key Dependencies (`pom.xml`)
+
+| Dependency | Purpose |
+|---|---|
+| `spring-ai-starter-model-google-genai` | Gemini AI model integration |
+| `spring-ai-starter-model-chat-memory-repository-jdbc` | JDBC-backed chat memory |
+| `spring-boot-starter-jdbc` | Spring JDBC support |
+| `postgresql` | PostgreSQL driver |
 
 ---
 
